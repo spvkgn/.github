@@ -1,0 +1,71 @@
+name: far2l
+run-name: Check far2l repository
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run nightly
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_date: ${{ steps.repo.outputs.commit_date }}
+      commit_sha: ${{ steps.repo.outputs.commit_sha }}
+      commit_url: ${{ steps.repo.outputs.commit_url }}
+      release_tag: ${{ steps.repo.outputs.release_tag }}
+      is_active: ${{ steps.activity.outputs.is_active }}
+    steps:
+      - name: Get repo data via GH API
+        id: repo
+        env:
+          REPO: elfmz/far2l
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export BRANCH=$(gh api repos/$REPO --jq '.default_branch')
+          echo "commit_date=$(gh api repos/$REPO/commits/$BRANCH --jq '.commit.committer.date')" >> $GITHUB_OUTPUT
+          echo "commit_sha=$(gh api repos/$REPO/commits/$BRANCH --jq '.sha')" >> $GITHUB_OUTPUT
+          echo "commit_url=$(gh api repos/$REPO/commits/$BRANCH --jq '.html_url')" >> $GITHUB_OUTPUT
+          echo "release_tag=$(gh api repos/$REPO/releases/latest --jq '.name')" >> $GITHUB_OUTPUT
+      - name: Check for repo activity
+        id: activity
+        env:
+          DATE: ${{ steps.repo.outputs.commit_date }}
+          URL: ${{ steps.repo.outputs.commit_url }}
+        run: |
+          TIMESTAMP=$(date --utc -d $DATE +%s)
+          DAYS=$(( ( $(date --utc +%s) - $TIMESTAMP ) / 86400 ))
+          echo "Repository activity: $(date --utc -d $DATE)"
+          echo "Commit: $URL"
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            is_active=true
+          elif [[ $DAYS -lt 1 ]] ; then
+            is_active=true
+          else
+            echo "Repository not updated."
+            is_active=false
+          fi
+          echo "is_active=$is_active" >> $GITHUB_OUTPUT
+
+  dispatch:
+    needs: check
+    permissions:
+      contents: write
+    if: needs.check.outputs.is_active == 'true'
+    strategy:
+      matrix:
+        repo: ['far2l-openwrt', 'far2l-termux']
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch event to remote repository
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.PAT }}
+          repository: ${{ github.repository_owner }}/${{ matrix.repo }}
+          event-type: build-nightly
+          client-payload: |
+            {
+              "date": "${{ needs.check.outputs.commit_date }}",
+              "sha": "${{ needs.check.outputs.commit_sha }}",
+              "tag": "${{ needs.check.outputs.release_tag }}"
+            }
