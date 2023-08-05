@@ -1,8 +1,8 @@
-name: Monthly
+name: Weekly
 
 on:
   schedule:
-    - cron: '0 0 1 * *' # Run monthly
+    - cron: '0 0 * * 1' # Run weekly
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
           commit_message: 'keep alive auto-commit'
           committer_username: 'github-actions[bot]'
           committer_email: 'github-actions[bot]@users.noreply.github.com'
-          time_elapsed: 30
+          time_elapsed: 50
 
   # keep_alive:
   #   uses: WaterLemons2k/scheduled-workflow-activity-action/.github/workflows/reusable.yml@v1
