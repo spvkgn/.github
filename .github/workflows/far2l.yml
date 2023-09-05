@@ -1,5 +1,5 @@
 name: far2l
-run-name: Check far2l repository
+run-name: far2l ${{ github.event_name == 'schedule' && '🌙 Nightly' || '🚀' }}
 
 on:
   schedule:
@@ -10,7 +10,50 @@ env:
   REPO: 'elfmz/far2l'
 
 jobs:
+  sync:
+    if: ${{ false }} # disable for now
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: far2l
+
+      - name: Checkout far2l
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.REPO }}
+          path: far2l
+
+      - name: Refresh patches
+        run: |
+          sudo apt update -qq && sudo apt install -y quilt
+          ( cd far2l && QUILT_PATCHES=../patches quilt --quiltrc=../.quiltrc push -a --refresh )
+          if ! git diff --exit-code patches/ ; then
+            git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add patches/ && git commit -m "Refresh patches" && git push && \
+            echo "is_refresh=true" >> $GITHUB_ENV
+          else
+            echo "No changes"
+            echo "is_refresh=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Sync files
+        if: env.is_refresh == 'true'
+        uses: BetaHuhn/repo-file-sync-action@v1
+        with:
+          GH_PAT: ${{ secrets.PAT }}
+          ORIGINAL_MESSAGE: true
+          COMMIT_EACH_FILE: false
+          SKIP_PR: true
+
   check:
+    # needs: sync
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.gh.outputs.date }}
@@ -20,7 +63,7 @@ jobs:
       message: ${{ steps.gh.outputs.message }}
       is_active: ${{ steps.activity.outputs.is_active }}
     steps:
-      - name: Get repo data via GH API
+      - name: Get metadata from repo
         id: gh
         env:
           REPO: ${{ env.REPO }}
@@ -55,7 +98,7 @@ jobs:
           elif [[ $DAYS -lt 1 ]] ; then
             is_active=true
           else
-            echo "Repository not updated."
+            echo "Repository not updated within last 24 hours."
             is_active=false
           fi
           echo "is_active=$is_active" >> $GITHUB_OUTPUT
