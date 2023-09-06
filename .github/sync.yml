@@ -1,0 +1,20 @@
+group:
+  - repos: |
+      spvkgn/far2l-portable
+    files:
+      - source: patches/
+        dest: patches/
+
+  - repos: |
+      spvkgn/far2l-openwrt
+    files:
+      - source: patches/
+        dest: far2l/patches/
+
+  - repos: |
+      spvkgn/far2l-termux
+    files:
+      - source: patches/
+        dest: far2l/
+        exclude: |
+          series
