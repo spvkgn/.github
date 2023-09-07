@@ -76,12 +76,9 @@ jobs:
             echo "sha=$(gh api repos/$REPO/commits/$BRANCH --jq '.sha[0:7]')"
             echo "url=$(gh api repos/$REPO/commits/$BRANCH --jq '.html_url')"
             echo "tag=$(gh api repos/$REPO/releases/latest --jq '.name|scan("[(\\d.)+\\d?]+")')"
-            echo "message<<EOF"
-            gh api repos/$REPO/commits/$BRANCH --jq '.commit.message'
-            echo EOF
+            echo "message=$(gh api repos/$REPO/commits/$BRANCH | jq -c '.commit.message' | perl -pe 's/^"|"$//g;' -pe "s|(?=#\d+)|$REPO|g")"
           } >> $GITHUB_OUTPUT
           echo "DATE=$DATE" >> $GITHUB_ENV
-        shell: bash
 
       - name: Check for repo activity
         id: activity
@@ -128,3 +125,26 @@ jobs:
               "tag": "${{ needs.check.outputs.tag }}",
               "message": "${{ needs.check.outputs.message }}"
             }
+
+      - name: Dispatch event to remote repository
+        if: ${{ false }} # disable for now
+        run: |
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.PAT }}"\
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository_owner }}/${{ matrix.repo }}/dispatches \
+            -d @- <<'EOF'
+          {
+            "event_type": "build-nightly",
+            "client_payload": {
+              "repo": "${{ env.REPO }}",
+              "date": "${{ needs.check.outputs.date }}",
+              "sha": "${{ needs.check.outputs.sha }}",
+              "url": "${{ needs.check.outputs.url }}",
+              "tag": "${{ needs.check.outputs.tag }}",
+              "message": "${{ needs.check.outputs.message }}"
+            }
+          }
+          EOF
