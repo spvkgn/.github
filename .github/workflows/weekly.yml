@@ -4,21 +4,25 @@ on:
   schedule:
     - cron: '0 0 * * 1' # Run weekly
   workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
-  cron_job:
+  keepalive:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: Mattraks/delete-workflow-runs@v2
-      - uses: gautamkrishnar/keepalive-workflow@v1
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Keepalive check
+        uses: gautamkrishnar/keepalive-workflow@v1
         with:
           commit_message: 'keep alive auto-commit'
           committer_username: 'github-actions[bot]'
           committer_email: 'github-actions[bot]@users.noreply.github.com'
           time_elapsed: 50
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        continue-on-error: true
 
   # keep_alive:
   #   uses: WaterLemons2k/scheduled-workflow-activity-action/.github/workflows/reusable.yml@v1
