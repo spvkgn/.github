@@ -1,0 +1,85 @@
+name: far2m Nightly
+run-name: far2m ${{ github.event_name == 'schedule' && '🌙 Nightly 🚀' || '🚀' }}
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run nightly
+  workflow_dispatch:
+
+env:
+  REPO: 'shmuz/far2m'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.gh.outputs.date }}
+      sha: ${{ steps.gh.outputs.sha }}
+      url: ${{ steps.gh.outputs.url }}
+      tag: ${{ steps.gh.outputs.tag }}
+      message: ${{ steps.gh.outputs.message }}
+      is_active: ${{ steps.activity.outputs.is_active }}
+    steps:
+      - name: Get metadata from repo
+        id: gh
+        env:
+          REPO: ${{ env.REPO }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=$(gh api repos/$REPO --jq '.default_branch')
+          DATE=$(gh api repos/$REPO/commits/$BRANCH --jq '.commit.committer.date')
+          {
+            echo "date=$(date --utc -d $DATE +%F)"
+            echo "sha=$(gh api repos/$REPO/commits/$BRANCH --jq '.sha[0:7]')"
+            echo "url=$(gh api repos/$REPO/commits/$BRANCH --jq '.html_url')"
+            # echo "tag=$(gh api repos/$REPO/releases/latest --jq '.tag_name|scan("[(\\d.)]+\\d+")')"
+            echo "tag=$(wget -qO- https://raw.githubusercontent.com/$REPO/$BRANCH/packaging/version)"
+            echo "message=$(gh api repos/$REPO/commits/$BRANCH | jq -c '.commit.message' | perl -pe 's/^"|"$//g;' -pe "s|(?=#\d+)|$REPO|g")"
+          } >> $GITHUB_OUTPUT
+          echo "DATE=$DATE" >> $GITHUB_ENV
+
+      - name: Check for repo activity
+        id: activity
+        env:
+          DATE: ${{ env.DATE }}
+          URL: ${{ steps.gh.outputs.url }}
+        run: |
+          TIMESTAMP=$(date --utc -d $DATE +%s)
+          DAYS=$(( ( $(date --utc +%s) - $TIMESTAMP ) / 86400 ))
+          echo "Repository activity: $(date --utc -d $DATE)"
+          echo "Commit: $URL"
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            is_active=true
+          elif [[ $DAYS -lt 1 ]] ; then
+            is_active=true
+          else
+            echo "Repository not updated within last 24 hours."
+            is_active=false
+          fi
+          echo "is_active=$is_active" >> $GITHUB_OUTPUT
+
+  dispatch:
+    needs: check
+    permissions:
+      contents: write
+    if: needs.check.outputs.is_active == 'true'
+    strategy:
+      matrix:
+        repo: ['far2m-portable']
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch event to remote repository
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.PAT }}
+          repository: ${{ github.repository_owner }}/${{ matrix.repo }}
+          event-type: build-nightly
+          client-payload: |
+            {
+              "repo": "${{ env.REPO }}",
+              "date": "${{ needs.check.outputs.date }}",
+              "sha": "${{ needs.check.outputs.sha }}",
+              "url": "${{ needs.check.outputs.url }}",
+              "tag": "${{ needs.check.outputs.tag }}",
+              "message": "${{ needs.check.outputs.message }}"
+            }
