@@ -1,0 +1,30 @@
+name: Mirror to Launchpad
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: 'elfmz/far2l'
+            branch: master
+    steps:
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          fetch-depth: 0
+
+      - name: Mirror to Launchpad
+        uses: yesolutions/mirror-action@master
+        with:
+          REMOTE: 'https://git.launchpad.net/~far2l-team/far2l/+git/far2l_upstream'
+          GIT_USERNAME: spvkgn
+          GIT_PASSWORD: ${{ secrets.LAUNCHPAD_FAR2L_TOKEN }}
+          PUSH_ALL_REFS: false
+          GIT_REF: ${{ matrix.branch }}
+          DEBUG: true
