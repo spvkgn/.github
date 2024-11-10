@@ -3,7 +3,7 @@ run-name: far2l ${{ github.event_name == 'schedule' && '🌙 Nightly 🚀' || '�
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Run nightly
+    - cron: '0 1 * * *'
   workflow_dispatch:
 
 env:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   sync:
-    if: ${{ false }} # disable for now
+    if: false # disable for now
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,7 +108,7 @@ jobs:
     if: needs.check.outputs.is_active == 'true'
     strategy:
       matrix:
-        repo: ['far2l-openwrt', 'far2l-termux', 'far2l-portable', 'far2l-flatpak']
+        repo: [ 'far2l-openwrt', 'far2l-termux', 'far2l-portable', 'far2l-flatpak' ]
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch event to remote repository
@@ -128,7 +128,7 @@ jobs:
             }
 
       - name: Dispatch event to remote repository
-        if: ${{ false }} # disable for now
+        if: false # disable for now
         run: |
           curl -L \
             -X POST \
@@ -149,3 +149,24 @@ jobs:
             }
           }
           EOF
+
+  mirror:
+    needs: check
+    if: needs.check.outputs.is_active == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout far2l
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REPO }}
+          fetch-depth: 0
+
+      - name: Mirror to Launchpad
+        uses: yesolutions/mirror-action@master
+        with:
+          REMOTE: 'https://git.launchpad.net/~far2l-team/far2l/+git/far2l_upstream'
+          GIT_USERNAME: spvkgn
+          GIT_PASSWORD: ${{ secrets.LAUNCHPAD_FAR2L_TOKEN }}
+          PUSH_ALL_REFS: false
+          GIT_REF: master
+          DEBUG: true
