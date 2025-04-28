@@ -9,12 +9,13 @@ on:
 env:
   REPO: 'elfmz/far2l'
 
+permissions:
+  actions: write
+
 jobs:
   sync:
     if: false # disable for now
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     continue-on-error: true
     steps:
       - name: Checkout
@@ -103,8 +104,6 @@ jobs:
 
   dispatch:
     needs: check
-    permissions:
-      contents: write
     if: needs.check.outputs.is_active == 'true'
     strategy:
       matrix:
@@ -170,3 +169,9 @@ jobs:
           PUSH_ALL_REFS: false
           GIT_REF: master
           DEBUG: true
+
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1

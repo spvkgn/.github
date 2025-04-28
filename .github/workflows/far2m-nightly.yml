@@ -9,6 +9,9 @@ on:
 env:
   REPO: 'shmuz/far2m'
 
+permissions:
+  actions: write
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -60,8 +63,6 @@ jobs:
 
   dispatch:
     needs: check
-    permissions:
-      contents: write
     if: needs.check.outputs.is_active == 'true'
     strategy:
       matrix:
@@ -83,3 +84,9 @@ jobs:
               "tag": "${{ needs.check.outputs.tag }}",
               "message": "${{ needs.check.outputs.message }}"
             }
+
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1
